@@ -6,10 +6,9 @@ To run these tests, simply run "py.test" in the K2fov source tree.
 """
 import json
 
-import K2fov
-from K2fov.K2onSilicon import getRaDecRollFromFieldnum
-
-CAMPAIGN_DICT = json.load(open(K2fov.CAMPAIGN_DICT_FILE))
+from .. import getFieldNumbers, getFieldInfo
+from ..K2onSilicon import getRaDecRollFromFieldnum
+from ..fields import _getCampaignDict
 
 
 def old_getRaDecRollFromFieldnum(fieldnum):
@@ -63,38 +62,6 @@ def old_getRaDecRollFromFieldnum(fieldnum):
         ra_deg = 186.7794430
         dec_deg = -4.0271572
         scRoll_deg = 157.6280500
-    elif fieldnum == 11:
-        ra_deg = 260.3880071
-        dec_deg = -23.9759578
-        scRoll_deg = 176.5837078
-    elif fieldnum == 12:
-        ra_deg = 351.6775368
-        dec_deg = -5.095648
-        scRoll_deg = -156.7203394
-    elif fieldnum == 13:
-        ra_deg = 72.7968465
-        dec_deg = 20.7863018
-        scRoll_deg = -172.6384788
-    elif fieldnum == 14:
-        ra_deg = 159.9670000
-        dec_deg = 7.1323713
-        scRoll_deg = 159.022
-    elif fieldnum == 15:
-        ra_deg = 231.6012920
-        dec_deg = -19.6081960
-        scRoll_deg = 166.296
-    elif fieldnum == 16:
-        ra_deg = 320.9966284
-        dec_deg = -16.4559528
-        scRoll_deg = -161.897
-    elif fieldnum == 17:
-        ra_deg = 188.3497679
-        dec_deg = -1.9586535
-        scRoll_deg = -22.290
-    elif fieldnum == 18:
-        ra_deg = 112.6389009
-        dec_deg = 20.2271914
-        scRoll_deg = 172.044
     else:
         raise NotImplementedError
 
@@ -104,10 +71,11 @@ def old_getRaDecRollFromFieldnum(fieldnum):
 def test_coordinates_file():
     """Are the coordinates in the "k2-campaigns.json" file identical
     to those that were hardcoded in v1.9.2?"""
-    campaigns = [100] + list(range(0, 19))
+    campaign_dict = _getCampaignDict()
+    campaigns = [100] + list(range(0, 11))
     for c in campaigns:
         test_ra, test_dec, test_roll = old_getRaDecRollFromFieldnum(c)
-        jsoninfo = CAMPAIGN_DICT["c{0}".format(c)]
+        jsoninfo = campaign_dict["c{0}".format(c)]
         assert(jsoninfo['ra'] == test_ra)
         assert(jsoninfo['dec'] == test_dec)
         assert(jsoninfo['roll'] == test_roll)
@@ -116,13 +84,30 @@ def test_coordinates_file():
 def test_coordinates_function():
     """Are the coordinates in the "k2-campaigns.json" file identical
     to those that were hardcoded in v1.9.2?"""
-    campaigns = [100] + list(range(0, 19))
+    campaigns = [100] + list(range(0, 11))
     for c in campaigns:
         test_ra, test_dec, test_roll = old_getRaDecRollFromFieldnum(c)
         ra, dec, roll = getRaDecRollFromFieldnum(c)
         assert(ra == test_ra)
         assert(dec == test_dec)
         assert(roll == test_roll)
+
+
+def test_meta_data():
+    """Are all the expected meta data fields configured for each campaign?"""
+    for fieldnum in getFieldNumbers():
+        info = getFieldInfo(fieldnum)
+        for key in ["ra", "dec", "roll", "start", "stop"]:
+            assert(key in info)
+        assert(info["campaign"] == fieldnum)
+
+
+def test_field_numbers():
+    """Is the list of field numbers present and complete?"""
+    field_numbers = getFieldNumbers()
+    # At the time of writing the test, fields 0 through 18 were defined
+    for campaign in range(0, 19):
+        assert(campaign in field_numbers)
 
 
 if __name__ == "__main__":

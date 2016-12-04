@@ -4,38 +4,38 @@ where RA and Dec are in decimal degrees
 """
 from __future__ import division, print_function
 import sys
-import json
-import logging
 
+from . import logger
+
+# Try importing numpy
 try:
     import numpy as np
-except ImportError:
-    print('You need numpy installed')
+except Exception:
+    logger.error('You need numpy installed')
     sys.exit(1)
 
+# Try importing matplotlib
 try:
-    import matplotlib.pyplot as plt
+    import matplotlib.pyplot as pl
     got_mpl = True
-except ImportError:
-    print('You need matplotlib installed to get a plot')
+    params = {
+                'axes.linewidth': 1.5,
+                'axes.labelsize': 24,
+                'font.family': 'sans-serif',
+                'font.size': 22,
+                'legend.fontsize': 14,
+                'xtick.labelsize': 16,
+                'ytick.labelsize': 16,
+                'text.usetex': False,
+             }
+    pl.rcParams.update(params)
+except Exception:
+    logger.warning('You need matplotlib installed to get a plot')
     got_mpl = False
 
+from . import fields
 from . import projection as proj
-from . import fov
-
-
-params = {
-            'axes.linewidth': 1.5,
-            'axes.labelsize': 24,
-            'font.family': 'sans-serif',
-            'font.size': 22,
-            'legend.fontsize': 14,
-            'xtick.labelsize': 16,
-            'ytick.labelsize': 16,
-            'text.usetex': False,
-         }
-if got_mpl:
-    plt.rcParams.update(params)
+from . import DEFAULT_PADDING
 
 
 def angSepVincenty(ra1, dec1, ra2, dec2):
@@ -55,12 +55,14 @@ def angSepVincenty(ra1, dec1, ra2, dec2):
     diffpos = np.arctan2(np.sqrt((cos_dec2 * sin_delta_ra) ** 2 +
                          (cos_dec1 * sin_dec2 -
                           sin_dec1 * cos_dec2 * cos_delta_ra) ** 2),
-                         sin_dec1 * sin_dec2 + cos_dec1 * cos_dec2 * cos_delta_ra)
+                          sin_dec1 * sin_dec2 + cos_dec1 * cos_dec2 * cos_delta_ra)
 
     return np.degrees(diffpos)
 
 
-def parse_file(infile):
+def parse_file(infile, exit_on_error=True):
+    """Parse a comma-separated file with columns "ra,dec,magnitude".
+    """
     try:
         a, b, mag = np.atleast_2d(
                             np.genfromtxt(
@@ -69,27 +71,25 @@ def parse_file(infile):
                                         delimiter=','
                                         )
                     ).T
-    except IOError:
-        print('There seems to be a problem with the input file, the format should be: RA_degrees (J2000), \
-            Dec_degrees (J2000), Magnitude. There should be no header, columns should be seperated by a comma')
-        sys.exit(1)
+    except IOError as e:
+        if exit_on_error:
+            logger.error("There seems to be a problem with the input file, "
+                         "the format should be: RA_degrees (J2000), Dec_degrees (J2000), "
+                         "Magnitude. There should be no header, columns should be "
+                         "separated by a comma")
+            sys.exit(1)
+        else:
+            raise e
     return a, b, mag
 
 
-def onSiliconCheck(ra_deg, dec_deg, FovObj):
-    try:
-        dist = angSepVincenty(FovObj.ra0_deg, FovObj.dec0_deg, ra_deg, dec_deg)
-        if dist >= 90.:
-            return False
-        ch = FovObj.pickAChannel(ra_deg, dec_deg)
-        ch, col, row = FovObj.getChannelColRow(ra_deg, dec_deg)
-        # exclude modules 3 and 7
-        if ch in [5, 6, 7, 8, 17, 18, 19, 20]:
-            return False
-        # return (ch,col,row)
-        return True
-    except ValueError:
+def onSiliconCheck(ra_deg, dec_deg, FovObj, padding_pix=DEFAULT_PADDING):
+    dist = angSepVincenty(FovObj.ra0_deg, FovObj.dec0_deg, ra_deg, dec_deg)
+    if dist >= 90.:
         return False
+    # padding_pix=3 means that objects less than 3 pixels off the edge of
+    # a channel are counted inside, to account for inaccuracies in K2fov.
+    return FovObj.isOnSilicon(ra_deg, dec_deg, padding_pix=padding_pix)
 
 
 def nearSiliconCheck(ra_deg, dec_deg, FovObj, max_sep=8.2):
@@ -100,89 +100,40 @@ def nearSiliconCheck(ra_deg, dec_deg, FovObj, max_sep=8.2):
         return False
 
 
-def getFieldInfo(fieldnum):
-    """Returns a dictionary containing the metadata of a K2 Campaign field.
-
-    Raises a ValueError if the field number is unknown.
-
-    Parameters
-    ----------
-    fieldnum : int
-        Campaign field number (e.g. 0, 1, 2, ...)
-
-    Returns
-    -------
-    field : dict
-        The dictionary contains the keys
-        'ra', 'dec', 'roll' (floats in decimal degrees),
-        'start', 'stop', (strings in YYYY-MM-DD format)
-        and 'comments' (free text).
-    """
-    try:
-        from . import CAMPAIGN_DICT_FILE
-        CAMPAIGN_DICT = json.load(open(CAMPAIGN_DICT_FILE))
-        info = CAMPAIGN_DICT["c{0}".format(fieldnum)]
-        # Print warning messages if necessary
-        if fieldnum == 100:
-            logging.warning("You are using the K2 first light field, "
-                            "you almost certainly do not want to do this")
-        elif "preliminary" in info and info["preliminary"] == "True":
-            logging.warning("The field you are searching is not yet fixed "
-                            "and is only the proposed position. "
-                            "Do not use this position for target selection.")
-        return info
-    except KeyError:
-        raise ValueError("Field {0} not set in this version "
-                         "of the code".format(fieldnum))
-
-
 def getRaDecRollFromFieldnum(fieldnum):
     """Returns ra, dec, and roll for a campaign.
 
     All values returned are in decimal degrees.
     """
-    info = getFieldInfo(fieldnum)
+    info = fields.getFieldInfo(fieldnum)
     return (info["ra"], info["dec"], info["roll"])
 
 
-def getKeplerFov(fieldnum):
-    """Returns a `fov.KeplerFov` object for a given campaign.
+def K2onSilicon(infile, fieldnum, do_nearSiliconCheck=False):
+    """Checks whether targets are on silicon during a given campaign.
+
+    This function will write a csv table called targets_siliconFlag.csv,
+    which details the silicon status for each target listed in `infile`
+    (0 = not on silicon, 2 = on silion).
 
     Parameters
     ----------
+    infile : str
+        Path to a csv table with columns ra_deg,dec_deg,magnitude (no header).
+
     fieldnum : int
         K2 Campaign number.
 
-    Returns
-    -------
-    fovobj : `fov.KeplerFov` object
-        Details the footprint of the requested K2 campaign.
+    do_nearSiliconCheck : bool
+        If `True`, targets near (but not on) silicon are flagged with a "1".
     """
-    ra, dec, scRoll = getRaDecRollFromFieldnum(fieldnum)
-    # convert from SC roll to FOV coordinates
-    # do not use the fovRoll coords anywhere else
-    # they are internal to this script only
-    fovRoll = fov.getFovAngleFromSpacecraftRoll(scRoll)
-    return fov.KeplerFov(ra, dec, fovRoll)
-
-
-def K2onSilicon(infile, fieldnum):
     ra_sources_deg, dec_sources_deg, mag = parse_file(infile)
+    n_sources = np.shape(ra_sources_deg)[0]
+    if n_sources > 500:
+        logger.warning("Warning: there are {0} sources in your target list, "
+                       "this could take some time".format(n_sources))
 
-    if np.shape(ra_sources_deg)[0] > 500:
-        logging.warning("There are {0} sources in your target list, "
-                        "this could take some time".format(np.shape(ra_sources_deg)[0]))
-
-    ra_deg, dec_deg, scRoll_deg = getRaDecRollFromFieldnum(fieldnum)
-
-    # convert from SC roll to FOV coordinates
-    # do not use the fovRoll coords anywhere else
-    # they are internal to this script only
-    fovRoll_deg = fov.getFovAngleFromSpacecraftRoll(scRoll_deg)
-
-    # initialize class
-    k = fov.KeplerFov(ra_deg, dec_deg, fovRoll_deg)
-
+    k = fields.getKeplerFov(fieldnum)
     raDec = k.getCoordsOfChannelCorners()
 
     onSilicon = list(
@@ -193,27 +144,27 @@ def K2onSilicon(infile, fieldnum):
                         np.repeat(k, len(ra_sources_deg))
                         )
                     )
-
-    nearSilicon = list(
-                    map(
-                        nearSiliconCheck,
-                        ra_sources_deg,
-                        dec_sources_deg,
-                        np.repeat(k, len(ra_sources_deg))
-                        )
-                    )
-
     onSilicon = np.array(onSilicon, dtype=bool)
-    nearSilicon = np.array(nearSilicon, dtype=bool)
+
+    if do_nearSiliconCheck:
+        nearSilicon = list(
+                        map(
+                            nearSiliconCheck,
+                            ra_sources_deg,
+                            dec_sources_deg,
+                            np.repeat(k, len(ra_sources_deg))
+                            )
+                        )
+        nearSilicon = np.array(nearSilicon, dtype=bool)
 
     if got_mpl:
         almost_black = '#262626'
         light_grey = np.array([float(248)/float(255)]*3)
         ph = proj.PlateCaree()
-        k.plotPointing(ph, showOuts=False, plot_degrees=False)
+        k.plotPointing(ph, showOuts=False)
         targets = ph.skyToPix(ra_sources_deg, dec_sources_deg)
         targets = np.array(targets)
-        fig = plt.gcf()
+        fig = pl.gcf()
         ax = fig.gca()
         ax = fig.add_subplot(111)
         ax.scatter(*targets, color='#fc8d62', s=7, label='not on silicon')
@@ -232,12 +183,14 @@ def K2onSilicon(infile, fieldnum):
         for t in texts:
             t.set_color(almost_black)
         fig.savefig('targets_fov.png', dpi=300)
-        plt.close('all')
-
-    siliconFlag = np.zeros_like(ra_sources_deg)
+        pl.close('all')
 
     # prints zero if target is not on silicon
-    siliconFlag = np.where(nearSilicon, 0, siliconFlag)
+    siliconFlag = np.zeros_like(ra_sources_deg)
+
+    # print a 1 if target is near but not on silicon
+    if do_nearSiliconCheck:
+        siliconFlag = np.where(nearSilicon, 1, siliconFlag)
 
     # prints a 2 if target is on silicon
     siliconFlag = np.where(onSilicon, 2, siliconFlag)

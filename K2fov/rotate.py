@@ -1,8 +1,5 @@
+"""Coordinate transformations in radec space"""
 import numpy as np
-
-#Coordinate transformations in radec space
-__version__ = "$Id: rotate.py 34 2013-12-19 22:14:12Z fergalm $"
-__URL__ = "$URL: http://svn.code.sf.net/p/keplertwowheel/code/py/rotate.py $"
 
 
 def vecFromRaDec(ra_deg, dec_deg):
@@ -58,19 +55,15 @@ def raDecFromVec(v):
     return np.array(raDec)
 
 
-
 def getAngleBetweenVectors(a, b, degrees=True):
-    norm = np.linalg.norm
 
     cost = np.dot(a, b)
-    cost /= np.norm(a) * np.norm(b)
+    cost /= np.linalg.norm(a) * np.linalg.norm(b)
 
     angle   = np.arccos(cost)   #In radians
     if degrees:
         angle *= 180/np.pi
     return angle
-
-
 
 
 def rotateAroundVector(v1, w, theta_deg):

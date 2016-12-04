@@ -1,4 +1,6 @@
  {
+  "field_numbers": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                    11, 12, 13, 14, 15, 16, 17, 18],
   "c100": {
     "campaign": 100,
     "ra": 290.6820,
@@ -107,60 +109,57 @@
   },
   "c11": {
     "campaign": 11,
-    "ra": 260.3880071,
+    "ra": 260.3880064,
     "dec": -23.9759578,
-    "roll": 176.5837078,
+    "roll": 176.7437075,
     "start": "2016-09-24",
     "stop": "2016-12-08",
     "comments": "Galactic Center"
   },
   "c12": {
     "campaign": 12,
-    "ra": 351.6775368,
-    "dec": -5.095648,
-    "roll": -156.7203394,
+    "ra": 351.6588124,
+    "dec": -5.1023328,
+    "roll": -156.8808419,
     "start": "2016-12-15",
     "stop": "2017-03-04",
-    "comments": "South Galactic Cap, Chiron, Mars"
+    "comments": "South Galactic Cap, Chiron, Mars, Trappist-1"
   },
   "c13": {
     "campaign": 13,
-    "ra": 72.7968465,
-    "dec": 20.7863018,
-    "roll": -172.6384788,
+    "ra": 72.7971166,
+    "dec": 20.7870759,
+    "roll": -172.7995758,
     "start": "2017-03-08",
     "stop": "2017-05-27",
     "comments": "Hyades, Taurus"
   },
   "c14": {
     "campaign": 14,
-    "ra": 159.9670000,
-    "dec": 7.1323713,
-    "roll": 159.022,
-    "start": "2017-05-30",
-    "stop": "2017-08-28",
-    "comments": "Proposed - position not final",
-    "preliminary": "True"
+    "ra": 160.6824762,
+    "dec": 6.8509316,
+    "roll": 158.7573464,
+    "start": "2017-05-31",
+    "stop": "2017-08-19",
+    "comments": "North Galactic Cap, Wolf 359, WASP-104"
   },
   "c15": {
     "campaign": 15,
-    "ra": 231.6012920,
-    "dec": -19.6081960,
-    "roll": 166.296,
-    "start": "2017-08-21",
-    "stop": "2017-11-18",
-    "comments": "Proposed - position not final",
-    "preliminary": "True"
+    "ra": 233.6175730,
+    "dec": -20.0792397,
+    "roll": 166.7780778,
+    "start": "2017-08-23",
+    "stop": "2017-11-20",
+    "comments": "Upper Sco, GW Lib, HP Lib"
   },
   "c16": {
     "campaign": 16,
-    "ra": 320.9966284,
-    "dec": -16.4559528,
-    "roll": -161.897,
-    "start": "2017-11-20",
-    "stop": "2018-02-09",
-    "comments": "Proposed - position not final",
-    "preliminary": "True"
+    "ra": 133.7099689,
+    "dec": 18.5253931,
+    "roll": -15.0205959,
+    "start": "2017-12-07",
+    "stop": "2018-02-25",
+    "comments": "Galaxies, M44 (Beehive), M67. Forward-facing to enable simultaneous ground-based observations."
   },
   "c17": {
     "campaign": 17,
